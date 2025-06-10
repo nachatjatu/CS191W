@@ -1,0 +1,4 @@
+*.csv filter=lfs diff=lfs merge=lfs -text
+dataset_1_pixels_grid_indices.csv filter=lfs diff=lfs merge=lfs -text
+* !text !filter !merge !diff
+*.nc filter=lfs diff=lfs merge=lfs -text
