@@ -7,6 +7,24 @@ from tqdm.notebook import tqdm
 
 
 def rolling_window_cv(tscv, unique_dates, df, features, model, target_col):
+    """
+    Performs rolling window cross-validation for time series data.
+
+    Args:
+        tscv (sklearn.model_selection.BaseCrossValidator): A time series cross-validator 
+            (e.g., TimeSeriesSplit) that yields indices for rolling window splits.
+        unique_dates (list): list of unique, sorted timestamps used 
+            to split the dataset into training and validation windows.
+        df (pd.DataFrame): Dataset containing `time`, feature, and target columns.
+        features (list[str]): List of column names to be used as features.
+        model (sklearn.base.BaseEstimator): A scikit-learn estimator.
+        target_col (str): Name of the column to be predicted.
+
+    Returns:
+        tuple of lists:
+            - rmse_scores (list[np.float]): RMSE scores for each validation window.
+            - mae_scores (list[np.float]): MAE scores for each validation window.
+    """
     rmse_scores = []
     mae_scores = []
     n_splits = tscv.get_n_splits(unique_dates)
@@ -18,12 +36,15 @@ def rolling_window_cv(tscv, unique_dates, df, features, model, target_col):
         X_train, y_train = train_df[features], train_df[target_col]
         X_val, y_val = val_df[features], val_df[target_col]
 
+        # create a fresh copy of the model
         model_clone = clone(model)
         model_clone.fit(X_train, y_train)
 
         y_preds = model_clone.predict(X_val)
+
         rmse = root_mean_squared_error(y_val, y_preds)
         mae = mean_absolute_error(y_val, y_preds)
+
         rmse_scores.append(rmse)
         mae_scores.append(mae)
 
@@ -32,12 +53,34 @@ def rolling_window_cv(tscv, unique_dates, df, features, model, target_col):
 
 
 def run_experiments(df, model, feature_experiments, train_days, gap_days, val_days):
+    """Runs a series of feature experiments and reports results (RMSE, MAE)
+
+    Args:
+        df (pd.DataFrame): Pandas DataFrame containing training and test data
+        model (sklearn.base.BaseEstimator): A scikit-learn estimator.
+        feature_experiments (list[(str, list[str])]): list containing tuples 
+            with name of feature experiment and a list of features to include in the experiment
+        train_days (int): width of training window (how many days to train on)
+        gap_days (int): width of gap (how many days to leave)
+        val_days (int): width of validation window (how many days to evaluate on)
+
+    Returns:
+        pd.DataFrame: DataFrame of results for each experiment, with mean RMSE, MAE
+        and window-specific RMSE scores.
+    """
     unique_dates = df['time'].unique()
-    tscv = TimeSeriesSplit(n_splits=10, max_train_size=train_days ,test_size=val_days, gap=gap_days)
+    
+    tscv = TimeSeriesSplit(
+        n_splits=10, 
+        max_train_size=train_days,
+        test_size=val_days, 
+        gap=gap_days
+    )
 
     results = []
     
-    for experiment_name, features in tqdm(feature_experiments, total=len(feature_experiments), leave=False):
+    for experiment_name, features in tqdm(
+        feature_experiments, total=len(feature_experiments), leave=False):
         print(f"Running experiment: {experiment_name}")
 
         rmse_scores, mae_scores = rolling_window_cv(
